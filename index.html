@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Iso Prototype</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>Iso Prototype</div>
+    <div class="muted">64×32 ромбовые тайлы</div>
+  </header>
+
+  <main class="wrap">
+    <canvas id="iso" width="960" height="540"></canvas>
+
+    <div class="panel">
+      <button id="regen">Перегенерировать (seed++)</button>
+      <label>Ширина:<input id="w" type="number" value="12" min="6" max="32"></label>
+      <label>Высота:<input id="h" type="number" value="10" min="6" max="32"></label>
+      <label>Seed:<input id="seed" type="number" value="12345"></label>
+    </div>
+  </main>
+
+  <script src="./iso.js"></script>
+</body>
+</html>
