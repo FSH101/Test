@@ -2,27 +2,375 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Iso Prototype</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Чат с мёртвым — прототип</title>
+  <!-- Telegram Mini App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* ===== iOS-like theming ===== */
+    :root {
+      --bg: #0b0c0f;
+      --card: #111319;
+      --text: #e7e7ea;
+      --muted: #a1a1aa;
+      --accent: #0a84ff; /* iOS blue */
+      --danger: #ff453a;
+      --bubble-in: #1c1f26;
+      --bubble-out: #0a84ff;
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --sbw: env(safe-area-inset-left);
+      --sbh: env(safe-area-inset-bottom);
+      --sbt: env(safe-area-inset-top);
+    }
+    @supports (font: -apple-system-body) {
+      body { font: -apple-system-body; }
+    }
+    @font-face {
+      font-family: 'SF Pro Text'; font-display: swap; src: local('SF Pro Text');
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; color: var(--text); background: radial-gradient(1200px 600px at 70% -10%, #121622 0%, #0b0c0f 60%);
+      font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      letter-spacing: .2px;
+    }
+    .app {
+      display: grid; grid-template-rows: auto 1fr auto; height: 100dvh; padding-top: max(8px, var(--sbt));
+    }
+    .topbar {
+      position: sticky; top: 0; display: flex; align-items: center; gap: 10px; padding: 14px 16px; backdrop-filter: saturate(180%) blur(20px);
+      background: color-mix(in oklab, #0b0c0f 70%, #111319 30% / .8); border-bottom: 1px solid rgba(255,255,255,.06);
+      z-index: 5;
+    }
+    .title { font-weight: 600; font-size: 17px; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+    .chat {
+      overflow-y: auto; padding: 12px 14px 4px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .bubble { max-width: 85%; padding: 10px 12px; border-radius: var(--radius); line-height: 1.25; box-shadow: var(--shadow); }
+    .in { align-self: flex-start; background: var(--bubble-in); border-top-left-radius: 6px; }
+    .out { align-self: flex-end; background: var(--bubble-out); color: #fff; border-top-right-radius: 6px; }
+    .system { align-self: center; background: transparent; box-shadow: none; color: var(--muted); font-size: 12px; }
+    .choices {
+      padding: 8px 14px calc(14px + max(6px, var(--sbh))); border-top: 1px solid rgba(255,255,255,.06);
+      display: grid; gap: 8px; background: linear-gradient(180deg, rgba(17,19,25,.6), rgba(11,12,15,.9));
+      position: sticky; bottom: 0; backdrop-filter: blur(14px);
+    }
+    .btn {
+      appearance: none; border: none; outline: none; padding: 12px 14px; border-radius: 14px; font-weight: 600; color: #fff;
+      background: linear-gradient(180deg, color-mix(in oklab, var(--accent), #fff 6%), var(--accent)); box-shadow: 0 8px 18px rgba(10,132,255,.35);
+      transition: transform .06s ease, filter .2s ease; cursor: pointer; text-align: left;
+    }
+    .btn.secondary { background: #1f232d; color: var(--text); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+    .btn.danger { background: linear-gradient(180deg, #ff5a4f, var(--danger)); box-shadow: 0 8px 18px rgba(255,69,58,.35); }
+    .btn:active { transform: translateY(1px) scale(.997); filter: brightness(.98); }
+    .meta { color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .restart { margin-left: auto; background: #242833; color: var(--text); padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.06); cursor: pointer; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sbh)); background: #1f232d; color: var(--text); padding: 10px 14px; border-radius: 12px; opacity: 0; transition: opacity .25s ease, translate .25s ease; }
+    .toast.show { opacity: 1; }
+    .linklike { color: var(--accent); text-decoration: underline dotted; cursor: pointer; }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div>Iso Prototype</div>
-    <div class="muted">64×32 ромбовые тайлы</div>
-  </header>
-
-  <main class="wrap">
-    <canvas id="iso" width="960" height="540"></canvas>
-
-    <div class="panel">
-      <button id="regen">Перегенерировать (seed++)</button>
-      <label>Ширина:<input id="w" type="number" value="12" min="6" max="32"></label>
-      <label>Высота:<input id="h" type="number" value="10" min="6" max="32"></label>
-      <label>Seed:<input id="seed" type="number" value="12345"></label>
+  <div class="app">
+    <div class="topbar">
+      <div>
+        <div class="title">Чат с мёртвым</div>
+        <div class="subtitle" id="subtitle">Однопользовательский хоррор-прототип</div>
+      </div>
+      <button class="restart" id="restartBtn" title="Начать заново">Сброс</button>
     </div>
-  </main>
 
-  <script src="./iso.js"></script>
+    <div class="chat" id="chat"></div>
+
+    <div class="choices" id="choices"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* === Telegram Mini App boot === */
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      try { tg.expand(); } catch {}
+      const tp = tg.themeParams || {};
+      // Optional: adapt iOS-like colors to Telegram theme
+      if (tp.bg_color) document.documentElement.style.setProperty('--bg', tp.bg_color);
+      if (tp.text_color) document.documentElement.style.setProperty('--text', tp.text_color);
+      if (tp.hint_color) document.documentElement.style.setProperty('--muted', tp.hint_color);
+      if (tp.button_color) document.documentElement.style.setProperty('--accent', tp.button_color);
+    }
+
+    /* === Minimal narrative engine === */
+    const chatEl = document.getElementById('chat');
+    const choicesEl = document.getElementById('choices');
+    const toastEl = document.getElementById('toast');
+
+    const STORAGE_KEY = 'deadchat_state_v1';
+
+    const story = {
+      start: {
+        sys: "Ты поднял найденный телефон. Экран тёплый.",
+        in: ["…Наконец-то. Верни.", "Ты держишь не своё."],
+        choices: [
+          { text: "Кто ты?", next: 'who' },
+          { text: "Нашёл — моё.", next: 'claim' },
+          { text: "Вызываю полицию", next: 'police' },
+        ]
+      },
+      who: {
+        in: ["Имя тебе не поможет.", "Скажи лучше: почему ты взял?"],
+        choices: [
+          { text: "Любопытство", next: 'curious' },
+          { text: "Хотел помочь", next: 'help' },
+          { text: "Слабость. Честно.", next: 'honest' },
+        ]
+      },
+      claim: {
+        in: ["Тогда это твоё фото в галерее? Открой.", "Не бойся."],
+        choices: [
+          { text: "Открываю галерею", next: 'gallery' },
+          { text: "Нет там моего фото", next: 'deny' },
+        ],
+        glitch: true
+      },
+      police: {
+        in: ["Позвони. Только не забудь объяснить, почему твоё имя в заметках.", "Страница: 'Последний, кто взял'"],
+        choices: [
+          { text: "Заметки? Открыть", next: 'notes' },
+          { text: "Блефуешь", next: 'bluff' },
+        ]
+      },
+      curious: {
+        in: ["Любопытство — слабость, которую легко дрессировать.", "Докажешь обратное?"],
+        choices: [
+          { text: "Докажу", next: 'prove' },
+          { text: "Нет смысла", next: 'nihil' },
+        ]
+      },
+      help: {
+        in: ["Помощь? Отлично. Начни с признания: ты забрал не своё.", "Скажи это."],
+        choices: [
+          { text: "Забрал не своё", next: 'confess' },
+          { text: "Не скажу", next: 'refuse' },
+        ]
+      },
+      honest: {
+        in: ["Честность — это дверь. За ней темно.", "Входи."],
+        choices: [
+          { text: "Вхожу", next: 'enter_dark' },
+          { text: "Закрываю", next: 'close_door' },
+        ]
+      },
+      gallery: {
+        sys: "В галерее пусто. Но снизу всплывает миниатюра: твоё лицо, снятое сейчас.",
+        in: ["Нравится? У тебя неплохой профиль.", "Верни."] ,
+        choices: [
+          { text: "Удаляю фото", next: 'delete' },
+          { text: "Почему я на фото?", next: 'why_me' },
+        ]
+      },
+      deny: {
+        in: ["Сделаем. *Щёлк*.", "Теперь есть."],
+        choices: [
+          { text: "Чего ты хочешь?", next: 'what' },
+        ]
+      },
+      notes: {
+        sys: "Открыта заметка: 'Последний, кто взял'. В списке — твоё имя.",
+        in: ["Ты уже внутри."],
+        choices: [
+          { text: "Как убрать своё имя?", next: 'remove_name' },
+          { text: "Это ловушка", next: 'trap' },
+        ]
+      },
+      bluff: {
+        in: ["Проверь. Или хочешь, чтобы я позвонил сам?"],
+        choices: [
+          { text: "Не смей", next: 'dont' },
+          { text: "Звони", next: 'call' },
+        ]
+      },
+      prove: {
+        in: ["Тогда откажись от одного ответа. Я выберу за тебя.", "Готов?"],
+        choices: [
+          { text: "Готов", next: 'glitch_choice' },
+          { text: "Нет", next: 'coward' },
+        ]
+      },
+      nihil: {
+        in: ["Правильно. Смысла нет, но последствия есть."],
+        choices: [
+          { text: "Какие?", next: 'conseq' },
+        ]
+      },
+      confess: {
+        in: ["Хороший мальчик. А теперь заплати: оставь телефон себе.", "Так начнётся твой список."],
+        choices: [
+          { text: "Какой список?", next: 'list' },
+        ]
+      },
+      refuse: {
+        in: ["Отказ принят. Цена — твоё имя вверху."],
+        choices: [ { text: "Продолжить", next: 'list' } ]
+      },
+      enter_dark: {
+        in: ["Дверь закрылась. Снаружи никого."],
+        choices: [ { text: "Иду дальше", next: 'list' } ]
+      },
+      close_door: {
+        in: ["Ты закрыл дверь. Но ключ у меня."],
+        choices: [ { text: "…", next: 'list' } ]
+      },
+      delete: {
+        sys: "Фото исчезло. Через секунду появляется снова — уже с другим ракурсом.",
+        in: ["Удаляй ещё. Воля — это привычка, а не кнопка."],
+        choices: [ { text: "Хватит игр", next: 'what' } ]
+      },
+      why_me: {
+        in: ["Потому что ты поднял. Поднимающий платит."],
+        choices: [ { text: "Что нужно?", next: 'what' } ]
+      },
+      what: {
+        in: ["Ничего особенного. Стань следующим."],
+        choices: [
+          { text: "Отказываюсь", next: 'reject' },
+          { text: "Становлюсь", next: 'accept' },
+        ]
+      },
+      remove_name: {
+        in: ["Имя стирается делами. Начинай с первого."],
+        choices: [ { text: "Какого?", next: 'first_task' } ]
+      },
+      trap: {
+        in: ["Каждая дверь — ловушка, если её закрыть за собой."],
+        choices: [ { text: "Дальше", next: 'first_task' } ]
+      },
+      dont: {
+        in: ["Тогда слушай и не перебивай."],
+        choices: [ { text: "Слушаю", next: 'first_task' } ]
+      },
+      call: {
+        sys: "Идёт вызов… Никто не берёт. На экране: 'Занято твоё.'",
+        in: ["Пустые угрозы — пустые люди."],
+        choices: [ { text: "Дальше", next: 'first_task' } ]
+      },
+      glitch_choice: {
+        in: ["Хорошо. Я выбираю за тебя."],
+        forceOut: "Готов.",
+        choices: [ { text: "…", next: 'first_task' } ]
+      },
+      coward: {
+        in: ["Трусость — тоже выбор. Она тоже ведёт внутрь."],
+        choices: [ { text: "Внутрь", next: 'first_task' } ]
+      },
+      conseq: {
+        in: ["Для начала — бессонница. Потом — голоса."],
+        choices: [ { text: "Голоса?", next: 'first_task' } ]
+      },
+      list: {
+        in: ["Список — это люди. Их много. Начни с себя."],
+        choices: [ { text: "Как?", next: 'first_task' } ]
+      },
+      first_task: {
+        sys: "Задание 1: напиши то, что ты не готов признать. (В прототипе: выбери вариант)",
+        in: ["Запись нужна для входа."],
+        choices: [
+          { text: "Я беру то, что не моё.", next: 'end_bind' },
+          { text: "Мне нравится власть над чужой болью.", next: 'end_dark' },
+          { text: "Я ничего не чувствую.", next: 'end_void' },
+        ]
+      },
+      end_bind: {
+        in: ["Признание принято. Телефон теперь твой. И ты — телефон."],
+        choices: []
+      },
+      end_dark: {
+        in: ["Наконец-то честно. Добро пожаловать в список."],
+        choices: []
+      },
+      end_void: {
+        in: ["Пустота — лучший сосуд. Наполним.", "Скоро."],
+        choices: []
+      }
+    };
+
+    // state
+    let state = loadState() || { node: 'start', log: [] };
+
+    function loadState() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function toast(msg) {
+      toastEl.textContent = msg; toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 1500);
+    }
+
+    function addBubble(text, cls = 'in') {
+      const b = document.createElement('div'); b.className = `bubble ${cls}`; b.textContent = text; chatEl.appendChild(b);
+      chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: 'smooth' });
+    }
+
+    function addSystem(text) {
+      const s = document.createElement('div'); s.className = 'bubble system'; s.textContent = text; chatEl.appendChild(s);
+      chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: 'smooth' });
+    }
+
+    function renderNode(key, userText) {
+      const node = story[key];
+      if (!node) return;
+      if (userText) addBubble(userText, 'out');
+      if (node.sys) addSystem(node.sys);
+      (node.in || []).forEach(t => addBubble(t, 'in'));
+
+      // Glitch mechanic: 20% chance to override next user reply
+      const willGlitch = node.glitch && Math.random() < 0.35;
+
+      choicesEl.innerHTML = '';
+      node.choices.forEach(ch => {
+        const btn = document.createElement('button');
+        btn.className = 'btn ' + (Math.random() < .3 ? 'secondary' : '');
+        btn.textContent = ch.text;
+        btn.onclick = () => {
+          state.log.push({ from: 'user', text: ch.text, at: Date.now() });
+
+          if (node.forceOut) {
+            // Forced outgoing bubble (telephone "chooses" for the player)
+            renderNode(ch.next, node.forceOut);
+          } else if (willGlitch) {
+            // override player's choice visually
+            renderNode(ch.next, '…Я согласен.');
+            toast('Связь оборвалась. Ответ изменён.');
+          } else {
+            renderNode(ch.next, ch.text);
+          }
+
+          state.node = ch.next; saveState();
+        };
+        choicesEl.appendChild(btn);
+      });
+
+      // If terminal node
+      if (!node.choices || node.choices.length === 0) {
+        const meta = document.createElement('div'); meta.className = 'meta';
+        meta.innerHTML = 'Конец ветки. <span class="linklike" id="restartLink">Начать заново</span>';
+        choicesEl.appendChild(meta);
+        document.getElementById('restartLink').onclick = reset;
+      }
+    }
+
+    function reset() {
+      state = { node: 'start', log: [] }; saveState(); chatEl.innerHTML = ''; choicesEl.innerHTML = ''; renderNode('start');
+    }
+
+    document.getElementById('restartBtn').onclick = reset;
+
+    // Boot
+    renderNode(state.node);
+  </script>
 </body>
 </html>
